@@ -353,6 +353,27 @@ public class ChatCommandsPlugin extends Plugin
 
 		logKills = false;
 
+		Widget pvpKD = client.getWidget(WidgetInfo.PVP_KILLDEATH_COUNTER).getChild(0);
+		if (pvpKD != null && !pvpKD.getText().isEmpty())
+		{
+//			log.debug("PVP KILL DEATH COUNTER: " + pvpKD.getText());
+			String kdText = pvpKD.getText();
+			int pvpKills = Integer.parseInt(kdText.substring(7, kdText.indexOf("<br>")));
+			int pvpDeaths = Integer.parseInt(kdText.substring(kdText.indexOf("Deaths:") + 8,
+											kdText.indexOf("<br>", kdText.indexOf("Deaths:") + 8)));
+//			log.debug("Pvp Kills: " + pvpKills);
+//			log.debug("Pvp Deaths: " + pvpDeaths);
+			if (pvpKills != getKc("Player Kills"))
+			{
+				setKc("Player Kills", pvpKills);
+			}
+
+			if (pvpDeaths !=  getKc("Player Deaths"))
+			{
+				setKc("Player Deaths", pvpDeaths);
+			}
+		}
+
 		Widget title = client.getWidget(WidgetInfo.KILL_LOG_TITLE);
 		Widget bossMonster = client.getWidget(WidgetInfo.KILL_LOG_MONSTER);
 		Widget bossKills = client.getWidget(WidgetInfo.KILL_LOG_KILLS);
@@ -383,6 +404,18 @@ public class ChatCommandsPlugin extends Plugin
 	@Subscribe
 	public void onWidgetLoaded(WidgetLoaded widget)
 	{
+		// load kc if the pvp kill counter widget is loaded, and displayed on screen
+		// i.e. the player has the toggle enabled
+		Widget pvpKD = client.getWidget(WidgetInfo.PVP_KILLDEATH_COUNTER).getChild(0);
+		if (pvpKD != null)
+		{
+			if (!pvpKD.getText().isEmpty())
+			{
+//				log.debug("PVP KD interface is visible");
+				logKills = true;
+			}
+		}
+
 		// don't load kc if in an instance, if the player is in another players poh
 		// and reading their boss log
 		if (widget.getGroupId() != KILL_LOGS_GROUP_ID || client.isInInstancedRegion())
