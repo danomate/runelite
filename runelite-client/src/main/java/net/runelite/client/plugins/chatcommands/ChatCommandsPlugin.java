@@ -27,8 +27,6 @@ package net.runelite.client.plugins.chatcommands;
 
 import com.google.inject.Provides;
 import java.io.IOException;
-import java.text.DecimalFormat;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.regex.Matcher;
@@ -43,10 +41,8 @@ import net.runelite.api.Experience;
 import net.runelite.api.IconID;
 import net.runelite.api.ItemComposition;
 import net.runelite.api.MessageNode;
-import net.runelite.api.Player;
 import net.runelite.api.VarPlayer;
 import net.runelite.api.Varbits;
-import net.runelite.api.WorldType;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.VarbitChanged;
@@ -54,8 +50,6 @@ import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.vars.AccountType;
 import net.runelite.api.widgets.Widget;
 import static net.runelite.api.widgets.WidgetID.KILL_LOGS_GROUP_ID;
-import static net.runelite.api.widgets.WidgetID.PVP_GROUP_ID;
-import static net.runelite.api.widgets.WidgetID.WILDERNESS_STATISTICS_GROUP_ID;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.chat.ChatColorType;
 import net.runelite.client.chat.ChatCommandManager;
@@ -72,7 +66,6 @@ import net.runelite.client.util.QuantityFormatter;
 import static net.runelite.client.util.Text.sanitize;
 import net.runelite.http.api.chat.ChatClient;
 import net.runelite.http.api.chat.Duels;
-import net.runelite.http.api.chat.PlayerKills;
 import net.runelite.http.api.hiscore.HiscoreClient;
 import net.runelite.http.api.hiscore.HiscoreEndpoint;
 import net.runelite.http.api.hiscore.HiscoreResult;
@@ -109,13 +102,11 @@ public class ChatCommandsPlugin extends Plugin
 	private static final String PB_COMMAND = "!pb";
 	private static final String GC_COMMAND_STRING = "!gc";
 	private static final String DUEL_ARENA_COMMAND = "!duels";
-	private static final String PLAYER_KILLS_COMMAND = "!pks";
 
 	private final HiscoreClient hiscoreClient = new HiscoreClient();
 	private final ChatClient chatClient = new ChatClient();
 
 	private boolean logKills;
-	private boolean logPvpKills;
 	private HiscoreEndpoint hiscoreEndpoint; // hiscore endpoint for current player
 	private String lastBossKill;
 	private int lastPb = -1;
@@ -162,7 +153,6 @@ public class ChatCommandsPlugin extends Plugin
 		chatCommandManager.registerCommandAsync(PB_COMMAND, this::personalBestLookup, this::personalBestSubmit);
 		chatCommandManager.registerCommandAsync(GC_COMMAND_STRING, this::gambleCountLookup, this::gambleCountSubmit);
 		chatCommandManager.registerCommandAsync(DUEL_ARENA_COMMAND, this::duelArenaLookup, this::duelArenaSubmit);
-		chatCommandManager.registerCommandAsync(PLAYER_KILLS_COMMAND, this::playerKillsLookup, this::playerKillsSubmit);
 	}
 
 	@Override
@@ -182,7 +172,6 @@ public class ChatCommandsPlugin extends Plugin
 		chatCommandManager.unregisterCommand(PB_COMMAND);
 		chatCommandManager.unregisterCommand(GC_COMMAND_STRING);
 		chatCommandManager.unregisterCommand(DUEL_ARENA_COMMAND);
-		chatCommandManager.unregisterCommand(PLAYER_KILLS_COMMAND);
 	}
 
 	@Provides
@@ -354,104 +343,57 @@ public class ChatCommandsPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick event)
 	{
-		if (!logKills && !logPvpKills)
+		if (!logKills)
 		{
 			return;
 		}
 
-		if (logPvpKills)
+		logKills = false;
+
+		Widget pvpKD = client.getWidget(WidgetInfo.PVP_KILLDEATH_COUNTER).getChild(0);
+		if (pvpKD != null && !pvpKD.getText().isEmpty())
 		{
-			logPvpKills = false;
-
-			String worldType = "";
-			EnumSet<WorldType> world = client.getWorldType();
-			if (world.contains(WorldType.PVP))
-			{
-				worldType = " Pvp";
-				log.debug("On a pvp world");
-			}
-			else if (world.contains(WorldType.BOUNTY))
-			{
-				worldType = " Bounty";
-				log.debug("On a bounty hunter world");
-			}
-			int pvpKills = getKc("Player Kills" + worldType);
-			int pvpDeaths = getKc("Player Kills" + worldType);
-
-			// update kills/deaths from the PVP Killdeath Counter overlay if visible
-			// i.e. the player has the K/D toggle enabled
-			Widget pvpKD = client.getWidget(WidgetInfo.PVP_KILLDEATH_COUNTER);
-			if (pvpKD != null)
-			{
-				log.debug("pvpKD not null 1");
-				pvpKD = client.getWidget(WidgetInfo.PVP_KILLDEATH_COUNTER).getChild(0);
-				if (pvpKD != null && !pvpKD.getText().isEmpty())
-				{
-					log.debug("pvpKD not empty 2");
-					String kdText = pvpKD.getText();
-					pvpKills = client.getVar(Varbits.PVP_KILLS);
-					pvpDeaths = client.getVar(Varbits.PVP_DEATHS);
-					log.debug("Pvp Kills: " + pvpKills);
-					log.debug("Pvp Deaths: " + pvpDeaths);
-				}
-			}
-
-			// update kills/deaths from the wilderness statistics board if visible
-			pvpKD = client.getWidget(WidgetInfo.WILDERNESS_STATISTICS_KILLS);
-			if (pvpKD != null && !pvpKD.getText().isEmpty())
-			{
-				String kdText = pvpKD.getText();
-				log.debug(kdText);
-				// index references for the objective number values in widget text
-				int killNumBegin = kdText.indexOf("Kills:") + 19;
-				int killNumEnd = kdText.indexOf("</col", kdText.indexOf("Kills:") + 19);
-				int deathNumBegin = kdText.indexOf("Deaths:") + 20;
-				int deathNumEnd = kdText.indexOf("</col>", kdText.indexOf("Deaths:") + 20);
-				pvpKills = Integer.parseInt(kdText.substring(killNumBegin, killNumEnd));
-				pvpDeaths = Integer.parseInt(kdText.substring(deathNumBegin, deathNumEnd));
-				log.debug("Pvp Kills: " + pvpKills);
-				log.debug("Pvp Deaths: " + pvpDeaths);
-			}
-
+//			log.debug("PVP KILL DEATH COUNTER: " + pvpKD.getText());
+			String kdText = pvpKD.getText();
+			int pvpKills = Integer.parseInt(kdText.substring(7, kdText.indexOf("<br>")));
+			int pvpDeaths = Integer.parseInt(kdText.substring(kdText.indexOf("Deaths:") + 8,
+											kdText.indexOf("<br>", kdText.indexOf("Deaths:") + 8)));
+//			log.debug("Pvp Kills: " + pvpKills);
+//			log.debug("Pvp Deaths: " + pvpDeaths);
 			if (pvpKills != getKc("Player Kills"))
 			{
-				setKc("Player Kills" + worldType, pvpKills);
+				setKc("Player Kills", pvpKills);
 			}
 
-			if (pvpDeaths != getKc("Player Deaths"))
+			if (pvpDeaths !=  getKc("Player Deaths"))
 			{
-				setKc("Player Deaths" + worldType, pvpDeaths);
+				setKc("Player Deaths", pvpDeaths);
 			}
 		}
 
-		if (logKills)
+		Widget title = client.getWidget(WidgetInfo.KILL_LOG_TITLE);
+		Widget bossMonster = client.getWidget(WidgetInfo.KILL_LOG_MONSTER);
+		Widget bossKills = client.getWidget(WidgetInfo.KILL_LOG_KILLS);
+
+		if (title == null || bossMonster == null || bossKills == null
+			|| !"Boss Kill Log".equals(title.getText()))
 		{
-			logKills = false;
+			return;
+		}
 
-			Widget title = client.getWidget(WidgetInfo.KILL_LOG_TITLE);
-			Widget bossMonster = client.getWidget(WidgetInfo.KILL_LOG_MONSTER);
-			Widget bossKills = client.getWidget(WidgetInfo.KILL_LOG_KILLS);
+		Widget[] bossChildren = bossMonster.getChildren();
+		Widget[] killsChildren = bossKills.getChildren();
 
-			if (title == null || bossMonster == null || bossKills == null
-				|| !"Boss Kill Log".equals(title.getText()))
+		for (int i = 0; i < bossChildren.length; ++i)
+		{
+			Widget boss = bossChildren[i];
+			Widget kill = killsChildren[i];
+
+			String bossName = boss.getText().replace(":", "");
+			int kc = Integer.parseInt(kill.getText().replace(",", ""));
+			if (kc != getKc(bossName))
 			{
-				return;
-			}
-
-			Widget[] bossChildren = bossMonster.getChildren();
-			Widget[] killsChildren = bossKills.getChildren();
-
-			for (int i = 0; i < bossChildren.length; ++i)
-			{
-				Widget boss = bossChildren[i];
-				Widget kill = killsChildren[i];
-
-				String bossName = boss.getText().replace(":", "");
-				int kc = Integer.parseInt(kill.getText().replace(",", ""));
-				if (kc != getKc(bossName))
-				{
-					setKc(bossName, kc);
-				}
+				setKc(bossName, kc);
 			}
 		}
 	}
@@ -460,30 +402,15 @@ public class ChatCommandsPlugin extends Plugin
 	public void onWidgetLoaded(WidgetLoaded widget)
 	{
 		// load kc if the pvp kill counter widget is loaded, and displayed on screen
-		// i.e. the player has the K/D toggle enabled
-		if (widget.getGroupId() == PVP_GROUP_ID)
+		// i.e. the player has the toggle enabled
+		Widget pvpKD = client.getWidget(WidgetInfo.PVP_KILLDEATH_COUNTER).getChild(0);
+		if (pvpKD != null)
 		{
-			Widget pvpKD = client.getWidget(WidgetInfo.PVP_KILLDEATH_COUNTER).getChild(0);
-			if (pvpKD != null)
+			if (!pvpKD.getText().isEmpty())
 			{
-				if (!pvpKD.getText().isEmpty())
-				{
-					log.debug("PVP KD interface is visible");
-					logPvpKills = true;
-				}
+//				log.debug("PVP KD interface is visible");
+				logKills = true;
 			}
-		}
-
-		// load kc if the wilderness statistics board is displayed
-		else if (widget.getGroupId() == WILDERNESS_STATISTICS_GROUP_ID)
-		{
-			log.debug("Wilderness statistics board is visible");
-			logPvpKills = true;
-		}
-
-		else
-		{
-			logPvpKills = false;
 		}
 
 		// don't load kc if in an instance, if the player is in another players poh
@@ -493,12 +420,8 @@ public class ChatCommandsPlugin extends Plugin
 			return;
 		}
 
-		else
-		{
-			logKills = true;
-		}
+		logKills = true;
 	}
-
 
 	@Subscribe
 	public void onVarbitChanged(VarbitChanged varbitChanged)
@@ -673,113 +596,6 @@ public class ChatCommandsPlugin extends Plugin
 			.append("   streak: ")
 			.append(ChatColorType.HIGHLIGHT)
 			.append(Integer.toString((winningStreak != 0 ? winningStreak : -losingStreak)))
-			.build();
-
-		log.debug("Setting response {}", response);
-		final MessageNode messageNode = chatMessage.getMessageNode();
-		messageNode.setRuneLiteFormatMessage(response);
-		chatMessageManager.update(messageNode);
-		client.refreshChat();
-	}
-
-	private boolean playerKillsSubmit(ChatInput chatInput, String value)
-	{
-		final int kills = getKc("Player Kills");
-		final int deaths = getKc("Player Deaths");
-		final int killsBounty = getKc("Player KillsBounty");
-		final int deathsBounty = getKc("Player DeathsBounty");
-		final int killsPvp = getKc("Player Kills Pvp");
-		final int deathsPvp = getKc("Player Deaths Pvp");
-
-		if (kills < 0 && deaths < 0 && killsBounty < 0 && deathsBounty < 0 && killsPvp < 0 && deathsPvp < 0)
-		{
-			return false;
-		}
-
-		final String playerName = client.getLocalPlayer().getName();
-
-		executor.execute(() ->
-		{
-			try
-			{
-				chatClient.submitPvpKills(playerName, kills, deaths, killsBounty, deathsBounty, killsPvp, deathsPvp);
-			}
-			catch (Exception ex)
-			{
-				log.warn("unable to submit player kills", ex);
-			}
-			finally
-			{
-				chatInput.resume();
-			}
-		});
-
-		return true;
-	}
-
-	private void playerKillsLookup(ChatMessage chatMessage, String message)
-	{
-		if (!config.pks())
-		{
-			return;
-		}
-
-		ChatMessageType type = chatMessage.getType();
-
-		final String player;
-		if (type == ChatMessageType.PRIVATECHATOUT)
-		{
-			player = client.getLocalPlayer().getName();
-		}
-		else
-		{
-			player = sanitize(chatMessage.getName());
-		}
-
-		PlayerKills playerKills;
-		try
-		{
-			playerKills = chatClient.getPvpKills(player);
-		}
-		catch (IOException ex)
-		{
-			log.debug("unable to lookup player kills", ex);
-			return;
-		}
-
-		int kills = playerKills.getKills();
-		int deaths = playerKills.getDeaths();
-		String worldType = "";
-		EnumSet<WorldType> world = client.getWorldType();
-		if (world.contains(WorldType.PVP))
-		{
-			worldType = " (Pvp)";
-			kills = playerKills.getKillsPvp();
-			deaths = playerKills.getDeathsPvp();
-		}
-		else if (world.contains(WorldType.BOUNTY))
-		{
-			worldType = " (Bounty)";
-			kills = playerKills.getKillsBounty();
-			deaths = playerKills.getDeathsBounty();
-		}
-
-		float ratio = kills / deaths;
-		DecimalFormat df = new DecimalFormat("#.##");
-
-		String response = new ChatMessageBuilder()
-			.append(ChatColorType.NORMAL)
-			.append("Player kills" + worldType + ": ")
-			.append(ChatColorType.HIGHLIGHT)
-			.append(Integer.toString(kills))
-			.append(ChatColorType.NORMAL)
-			.append("   deaths" + worldType + ": ")
-			.append(ChatColorType.HIGHLIGHT)
-			.append(Integer.toString(deaths))
-			.append(ChatColorType.NORMAL)
-			.append("   ratio: ")
-			.append(ChatColorType.HIGHLIGHT)
-			.append(df.format(ratio))
 			.build();
 
 		log.debug("Setting response {}", response);
@@ -1343,28 +1159,31 @@ public class ChatCommandsPlugin extends Plugin
 	 */
 	private HiscoreLookup getCorrectLookupFor(final ChatMessage chatMessage)
 	{
-		Player localPlayer = client.getLocalPlayer();
-		final String player = sanitize(chatMessage.getName());
+		final String player;
+		final HiscoreEndpoint ironmanStatus;
 
-		// If we are sending the message then just use the local hiscore endpoint for the world
-		if (chatMessage.getType().equals(ChatMessageType.PRIVATECHATOUT)
-			|| player.equals(localPlayer.getName()))
+		if (chatMessage.getType().equals(ChatMessageType.PRIVATECHATOUT))
 		{
-			return new HiscoreLookup(localPlayer.getName(), hiscoreEndpoint);
+			player = client.getLocalPlayer().getName();
+			ironmanStatus = hiscoreEndpoint;
 		}
-
-		// Public chat on a leagues world is always league hiscores, regardless of icon
-		if (chatMessage.getType() == ChatMessageType.PUBLICCHAT || chatMessage.getType() == ChatMessageType.MODCHAT)
+		else
 		{
-			if (client.getWorldType().contains(WorldType.LEAGUE))
+			player = sanitize(chatMessage.getName());
+
+			if (player.equals(client.getLocalPlayer().getName()))
 			{
-				return new HiscoreLookup(player, HiscoreEndpoint.LEAGUE);
+				// Get ironman status from for the local player
+				ironmanStatus = hiscoreEndpoint;
+			}
+			else
+			{
+				// Get ironman status from their icon in chat
+				ironmanStatus = getHiscoreEndpointByName(chatMessage.getName());
 			}
 		}
 
-		// Get ironman status from their icon in chat
-		HiscoreEndpoint endpoint = getHiscoreEndpointByName(chatMessage.getName());
-		return new HiscoreLookup(player, endpoint);
+		return new HiscoreLookup(player, ironmanStatus);
 	}
 
 	/**
@@ -1403,12 +1222,6 @@ public class ChatCommandsPlugin extends Plugin
 	 */
 	private HiscoreEndpoint getLocalHiscoreEndpointType()
 	{
-		EnumSet<WorldType> worldType = client.getWorldType();
-		if (worldType.contains(WorldType.LEAGUE))
-		{
-			return HiscoreEndpoint.LEAGUE;
-		}
-
 		return toEndPoint(client.getAccountType());
 	}
 
@@ -1599,14 +1412,6 @@ public class ChatCommandsPlugin extends Plugin
 			case "cgaunt":
 			case "cgauntlet":
 				return "Corrupted Gauntlet";
-
-			// Pvp (temporary while !pks doesn't work)
-			case "pks":
-				return "Player Kills";
-			case "pks bh":
-				return "Player Kills Bounty";
-			case "pks pvp":
-				return "Player Kills Pvp";
 
 			default:
 				return WordUtils.capitalize(boss);
