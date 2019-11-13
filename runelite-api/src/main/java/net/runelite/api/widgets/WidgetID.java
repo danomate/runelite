@@ -121,6 +121,7 @@ public class WidgetID
 	public static final int MINIGAME_TAB_ID = 76;
 	public static final int SPELLBOOK_GROUP_ID = 218;
 	public static final int PVP_GROUP_ID = 90;
+	public static final int WILDERNESS_STATISTICS_GROUP_ID = 380;
 	public static final int FISHING_TRAWLER_GROUP_ID = 366;
 	public static final int FISHING_TRAWLER_REWARD_GROUP_ID = 367;
 	public static final int ZEAH_MESS_HALL_GROUP_ID = 235;
@@ -757,6 +758,13 @@ public class WidgetID
 		static final int SAFE_ZONE = 56;
 		static final int WILDERNESS_LEVEL = 59; // this can also be the Deadman Mode "Protection" text
 	}
+
+	static class WildernessStatistics
+	{
+		static final int TITLE = 1;
+		static final int KILLS = 2;
+	}
+
 
 	static class KourendFavour
 	{
