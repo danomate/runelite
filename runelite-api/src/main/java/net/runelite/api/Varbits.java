@@ -234,6 +234,12 @@ public enum Varbits
 	IN_WILDERNESS(5963),
 
 	/**
+	 * PVP Kill death counters, updated by the PVP_KILLDEATH_COUNTER widget
+	 */
+	PVP_DEATHS(8375),
+	PVP_KILLS(8376),
+
+	/**
 	 * Fishing Trawler
 	 * FISHING_TRAWLER_ACTIVITY Expected values: 0-255
 	 */

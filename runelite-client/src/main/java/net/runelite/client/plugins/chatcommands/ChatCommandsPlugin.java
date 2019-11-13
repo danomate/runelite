@@ -50,6 +50,8 @@ import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.vars.AccountType;
 import net.runelite.api.widgets.Widget;
 import static net.runelite.api.widgets.WidgetID.KILL_LOGS_GROUP_ID;
+import static net.runelite.api.widgets.WidgetID.PVP_GROUP_ID;
+import static net.runelite.api.widgets.WidgetID.WILDERNESS_STATISTICS_GROUP_ID;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.chat.ChatColorType;
 import net.runelite.client.chat.ChatCommandManager;
@@ -350,22 +352,51 @@ public class ChatCommandsPlugin extends Plugin
 
 		logKills = false;
 
-		Widget pvpKD = client.getWidget(WidgetInfo.PVP_KILLDEATH_COUNTER).getChild(0);
+		// set the widget as the wilderness KD Ratio overlay if visible
+		Widget pvpKD = client.getWidget(WidgetInfo.PVP_KILLDEATH_COUNTER);
+		if (pvpKD != null)
+		{
+			pvpKD = client.getWidget(WidgetInfo.PVP_KILLDEATH_COUNTER).getChild(0);
+			if (!pvpKD.getText().isEmpty())
+			{
+//				log.debug("PVP KILL DEATH COUNTER: " + pvpKD.getText());
+				String kdText = pvpKD.getText();
+				/*int pvpKills = Integer.parseInt(kdText.substring(7, kdText.indexOf("<br>")));
+				int pvpDeaths = Integer.parseInt(kdText.substring(kdText.indexOf("Deaths:") + 8,
+												kdText.indexOf("<br>", kdText.indexOf("Deaths:") + 8)));*/
+				int pvpKills = client.getVar(Varbits.PVP_KILLS);
+				int pvpDeaths = client.getVar(Varbits.PVP_DEATHS);
+				log.debug("Pvp Kills: " + pvpKills);
+				log.debug("Pvp Deaths: " + pvpDeaths);
+				if (pvpKills != getKc("Player Kills"))
+				{
+					setKc("Player Kills", pvpKills);
+				}
+
+				if (pvpDeaths != getKc("Player Deaths"))
+				{
+					setKc("Player Deaths", pvpDeaths);
+				}
+
+			}
+		}
+
+		// set the widget as the Wilderness statistics board in Edgeville if visible
+		pvpKD = client.getWidget(WidgetInfo.WILDERNESS_STATISTICS_KILLS);
 		if (pvpKD != null && !pvpKD.getText().isEmpty())
 		{
-//			log.debug("PVP KILL DEATH COUNTER: " + pvpKD.getText());
 			String kdText = pvpKD.getText();
-			int pvpKills = Integer.parseInt(kdText.substring(7, kdText.indexOf("<br>")));
-			int pvpDeaths = Integer.parseInt(kdText.substring(kdText.indexOf("Deaths:") + 8,
-											kdText.indexOf("<br>", kdText.indexOf("Deaths:") + 8)));
-//			log.debug("Pvp Kills: " + pvpKills);
-//			log.debug("Pvp Deaths: " + pvpDeaths);
+			log.debug(kdText);
+			int pvpKills = Integer.parseInt(kdText.substring(kdText.indexOf("Kills:") + 19, kdText.indexOf("</col", kdText.indexOf("Kills:") + 19)));
+			int pvpDeaths = Integer.parseInt(kdText.substring(kdText.indexOf("Deaths:") + 20, kdText.indexOf("</col>", kdText.indexOf("Deaths:") + 20)));
+			log.debug("Pvp Kills: " + pvpKills);
+			log.debug("Pvp Deaths: " + pvpDeaths);
 			if (pvpKills != getKc("Player Kills"))
 			{
 				setKc("Player Kills", pvpKills);
 			}
 
-			if (pvpDeaths !=  getKc("Player Deaths"))
+			if (pvpDeaths != getKc("Player Deaths"))
 			{
 				setKc("Player Deaths", pvpDeaths);
 			}
@@ -402,15 +433,25 @@ public class ChatCommandsPlugin extends Plugin
 	public void onWidgetLoaded(WidgetLoaded widget)
 	{
 		// load kc if the pvp kill counter widget is loaded, and displayed on screen
-		// i.e. the player has the toggle enabled
-		Widget pvpKD = client.getWidget(WidgetInfo.PVP_KILLDEATH_COUNTER).getChild(0);
-		if (pvpKD != null)
+		// i.e. the player has the K/D toggle enabled
+		if (widget.getGroupId() == PVP_GROUP_ID)
 		{
-			if (!pvpKD.getText().isEmpty())
+			Widget pvpKD = client.getWidget(WidgetInfo.PVP_KILLDEATH_COUNTER).getChild(0);
+			if (pvpKD != null)
 			{
+				if (!pvpKD.getText().isEmpty())
+				{
 //				log.debug("PVP KD interface is visible");
-				logKills = true;
+					logKills = true;
+				}
 			}
+		}
+
+		// load kc if the wilderness statistics board is displayed
+		if (widget.getGroupId() == WILDERNESS_STATISTICS_GROUP_ID)
+		{
+			log.debug("Wilderness statistics board is visible");
+			logKills = true;
 		}
 
 		// don't load kc if in an instance, if the player is in another players poh
