@@ -121,6 +121,17 @@ public interface ChatCommandsConfig extends Config
 
 	@ConfigItem(
 		position = 8,
+		keyName = "pks",
+		name = "PKS Command",
+		description = "Configures whether the player kills command is enabled<br> !pks"
+	)
+	default boolean pks()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		position = 9,
 		keyName = "clearShortcuts",
 		name = "Clear shortcuts",
 		description = "Enable shortcuts (ctrl+w and backspace) for clearing the chatbox"

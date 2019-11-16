@@ -31,6 +31,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import net.runelite.http.api.chat.LayoutRoom;
+import net.runelite.http.api.chat.PlayerKills;
 import net.runelite.http.api.chat.Task;
 import net.runelite.http.api.chat.Duels;
 import net.runelite.http.service.util.redis.RedisPool;
@@ -201,6 +202,51 @@ public class ChatService
 			jedis.hmset(key, duelsMap);
 			jedis.expire(key, (int) EXPIRE.getSeconds());
 		}
+	}
+
+	public PlayerKills getPvpKills(String name)
+	{
+		Map<String, String> map;
+
+		try (Jedis jedis = jedisPool.getResource())
+		{
+			map = jedis.hgetAll("playerkills." + name);
+		}
+
+		if (map.isEmpty())
+		{
+			return null;
+		}
+
+		PlayerKills playerKills = new PlayerKills();
+		playerKills.setKills(Integer.parseInt(map.get("kills")));
+		playerKills.setDeaths(Integer.parseInt(map.get("deaths")));
+		playerKills.setKillsBounty(Integer.parseInt(map.get("killsBounty")));
+		playerKills.setDeathsBounty(Integer.parseInt(map.get("deathsBounty")));
+		playerKills.setKillsPvp(Integer.parseInt(map.get("killsPvp")));
+		playerKills.setDeathsPvp(Integer.parseInt(map.get("deathsPvp")));
+		return playerKills;
+	}
+
+	public void setPvpKills(String name, PlayerKills playerKills)
+	{
+		Map<String, String> playerKillsMap = ImmutableMap.<String, String>builderWithExpectedSize(6)
+			.put("kills", Integer.toString(playerKills.getKills()))
+			.put("deaths", Integer.toString(playerKills.getDeaths()))
+			.put("killsBounty", Integer.toString(playerKills.getKillsBounty()))
+			.put("deathsBounty", Integer.toString(playerKills.getDeathsBounty()))
+			.put("killsPvp", Integer.toString(playerKills.getKillsPvp()))
+			.put("deathsPvp", Integer.toString(playerKills.getDeathsPvp()))
+			.build();
+
+		String key = "playerkils." + name;
+
+		try (Jedis jedis = jedisPool.getResource())
+		{
+			jedis.hmset(key, playerKillsMap);
+			jedis.expire(key, (int) EXPIRE.getSeconds());
+		}
+
 	}
 
 	public LayoutRoom[] getLayout(String name)
