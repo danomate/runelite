@@ -31,6 +31,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.runelite.http.api.chat.Duels;
 import net.runelite.http.api.chat.LayoutRoom;
+import net.runelite.http.api.chat.PlayerKills;
 import net.runelite.http.api.chat.Task;
 import net.runelite.http.service.util.exception.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -210,6 +211,39 @@ public class ChatController
 		}
 		return duels;
 	}
+
+	@PostMapping("/playerkills")
+	public void submitPvpKills(@RequestParam String name, @RequestParam int kills,
+		@RequestParam int deaths, @RequestParam int killsBounty,
+		@RequestParam int deathsBounty, @RequestParam int killsPvp, @RequestParam int deathsPvp)
+	{
+		if (kills < 0 || deaths < 0 || killsBounty < 0 || deathsBounty < 0 || killsPvp < 0 || deathsPvp < 0)
+		{
+			return;
+		}
+
+		PlayerKills playerKills = new PlayerKills();
+		playerKills.setKills(kills);
+		playerKills.setDeaths(deaths);
+		playerKills.setKillsBounty(killsBounty);
+		playerKills.setDeathsBounty(deathsBounty);
+		playerKills.setKillsPvp(killsPvp);
+		playerKills.setDeathsPvp(deathsPvp);
+
+		chatService.setPvpKills(name, playerKills);
+	}
+
+	@GetMapping("/playerkills")
+	public PlayerKills getPvpKills(@RequestParam String name)
+	{
+		PlayerKills playerKills = chatService.getPvpKills(name);
+		if (playerKills == null)
+		{
+			throw new NotFoundException();
+		}
+		return playerKills;
+	}
+
 
 	@PostMapping("/layout")
 	public void submitLayout(@RequestParam String name, @RequestBody LayoutRoom[] rooms)

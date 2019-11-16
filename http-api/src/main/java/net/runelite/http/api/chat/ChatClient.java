@@ -275,6 +275,7 @@ public class ChatClient
 			.post(RequestBody.create(null, new byte[0]))
 			.url(url)
 			.build();
+		System.out.println(url);
 
 		try (Response response = RuneLiteAPI.CLIENT.newCall(request).execute())
 		{
@@ -293,6 +294,7 @@ public class ChatClient
 		Request request = new Request.Builder()
 			.url(url)
 			.build();
+		System.out.println(url);
 
 		try (Response response = RuneLiteAPI.CLIENT.newCall(request).execute())
 		{
@@ -310,6 +312,61 @@ public class ChatClient
 		}
 	}
 
+	public boolean submitPvpKills(String username, int kills, int deaths, int killsBounty, int deathsBounty, int killsPvp, int deathsPvp) throws IOException
+	{
+		HttpUrl url = RuneLiteAPI.getApiBase().newBuilder()
+			.addPathSegment("chat")
+			.addPathSegment("playerkills")
+			.addQueryParameter("name", username)
+			.addQueryParameter("kills", Integer.toString(kills))
+			.addQueryParameter("deaths", Integer.toString(deaths))
+			.addQueryParameter("killsBounty", Integer.toString(killsBounty))
+			.addQueryParameter("deathsBounty", Integer.toString(deathsBounty))
+			.addQueryParameter("killsPvp", Integer.toString(killsPvp))
+			.addQueryParameter("deathsPvp", Integer.toString(deathsPvp))
+			.build();
+
+		Request request = new Request.Builder()
+			.post(RequestBody.create(null, new byte[0]))
+			.url(url)
+			.build();
+
+		try (Response response = RuneLiteAPI.CLIENT.newCall(request).execute())
+		{
+			return response.isSuccessful();
+		}
+	}
+
+	public PlayerKills getPvpKills(String username) throws IOException
+	{
+		HttpUrl url = RuneLiteAPI.getApiBase().newBuilder()
+			.addPathSegment("chat")
+			.addPathSegment("playerkills")
+			.addQueryParameter("name", username)
+			.build();
+
+		Request request = new Request.Builder()
+			.url(url)
+			.build();
+		System.out.println(url);
+
+		try (Response response = RuneLiteAPI.CLIENT.newCall(request).execute())
+		{
+			if (!response.isSuccessful())
+			{
+				throw new IOException("Unable to look up player kills!");
+			}
+
+			InputStream in = response.body().byteStream();
+			return RuneLiteAPI.GSON.fromJson(new InputStreamReader(in), PlayerKills.class);
+		}
+		catch (JsonParseException ex)
+		{
+			throw new IOException(ex);
+		}
+
+	}
+
 	public boolean submitLayout(String username, LayoutRoom[] rooms) throws IOException
 	{
 		HttpUrl url = RuneLiteAPI.getApiBase().newBuilder()
@@ -322,6 +379,7 @@ public class ChatClient
 			.post(RequestBody.create(RuneLiteAPI.JSON, RuneLiteAPI.GSON.toJson(rooms)))
 			.url(url)
 			.build();
+		System.out.println(url);
 
 		try (Response response = RuneLiteAPI.CLIENT.newCall(request).execute())
 		{
